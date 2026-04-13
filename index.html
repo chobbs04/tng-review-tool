@@ -284,7 +284,14 @@ const state = {
 // ============================================================
 async function initMsal() {
   msalInstance = new msal.PublicClientApplication(msalConfig);
-  await msalInstance.handleRedirectPromise();
+  const redirectResult = await msalInstance.handleRedirectPromise();
+  if (redirectResult) {
+    state.account = redirectResult.account;
+    state.token = redirectResult.accessToken;
+    showAppView();
+    await loadAssessmentList();
+    return;
+  }
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length > 0) {
     state.account = accounts[0];
@@ -299,19 +306,14 @@ async function initMsal() {
 async function login() {
   document.getElementById('login-error').textContent = '';
   try {
-    const result = await msalInstance.loginPopup(loginRequest);
-    state.account = result.account;
-    state.token = result.accessToken;
-    showAppView();
-    await loadAssessmentList();
+    await msalInstance.loginRedirect(loginRequest);
   } catch (e) {
     document.getElementById('login-error').textContent = 'Sign in failed. Please try again.';
   }
 }
 
 function logout() {
-  msalInstance.logoutPopup({ account: state.account });
-  showLoginView();
+  msalInstance.logoutRedirect({ account: state.account });
 }
 
 async function refreshToken() {
@@ -319,8 +321,7 @@ async function refreshToken() {
     const result = await msalInstance.acquireTokenSilent({ ...loginRequest, account: state.account });
     state.token = result.accessToken;
   } catch {
-    const result = await msalInstance.acquireTokenPopup(loginRequest);
-    state.token = result.accessToken;
+    await msalInstance.acquireTokenRedirect(loginRequest);
   }
 }
 
