@@ -241,14 +241,12 @@ textarea.exclusion-textarea:focus { outline: none; border-color: #BA7517; }
 //  CONFIG — update CLIENT_ID and status values before use
 // ============================================================
 const CONFIG = {
-  CLIENT_ID: '532eb90a-f323-42f8-b919-5c9403253b06',       // Replace after creating Azure app registration
+  CLIENT_ID: '532eb90a-f323-42f8-b919-5c9403253b06',       
   TENANT_ID: 'd07114e5-8c65-48ee-9b85-1effb613d7c0',
   DATAVERSE_URL: 'https://orgcb366cbd.crm.dynamics.com',
   get REDIRECT_URI() { return window.location.origin + window.location.pathname; },
-
-  // Find these values in Dataverse: Tables → Assessment → Columns → Assessment Status → Edit
-  STATUS_PENDING_REVIEW: 2,   // Integer value for "Pending Review"
-  STATUS_COMPLETED: 3,        // Integer value for "Completed"
+  STATUS_PENDING_REVIEW: 2,   
+  STATUS_COMPLETED: 3,        
 };
 
 // ============================================================
