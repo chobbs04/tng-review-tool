@@ -457,9 +457,8 @@ async function openAssessment(assessmentId) {
         '$orderby': 'ch_sectionordersnapshot asc',
       }),
       apiGet('ch_assessmentquestionresponses', {
-        '$select': 'ch_assessmentquestionresponseid,ch_questiontextsnapshot,ch_sectionnamesnapshot,ch_sectionordersnapshot,ch_questionordersnapshot,ch_responsevalue,ch_questioncomment,ch_assessornarrative,ch_includedinreport,ch_exclusionreason,_ch_assessmentsection_value',
+        '$select': 'ch_assessmentquestionresponseid,ch_questiontextsnapshot,ch_sectionnamesnapshot,ch_sectionordersnapshot,ch_questionordersnapshot,ch_responsevalue,ch_questioncomment,ch_assessornarrative,ch_includedinreport,ch_exclusionreason,_ch_assessmentsection_value,_ch_templatequestion_value',
         '$filter': `_ch_assessment_value eq ${assessmentId} and ch_isdeficient eq true`,
-        '$expand': 'ch_templatequestion($select=ch_category,ch_deficientnarrative,ch_helptext,ch_vulnerabilityranking)',
         '$orderby': 'ch_sectionordersnapshot asc,ch_questionordersnapshot asc',
       }),
       apiGet('ch_assessmentphotos', {
@@ -469,7 +468,25 @@ async function openAssessment(assessmentId) {
     ]);
 
     state.sections = secData.value || [];
-    state.responses = resData.value || [];
+    const rawResponses = resData.value || [];
+
+    // Fetch template questions separately to avoid navigation property issues
+    const tqIds = [...new Set(rawResponses.map(r => r['_ch_templatequestion_value']).filter(Boolean))];
+    let tqMap = {};
+    if (tqIds.length > 0) {
+      const tqFilter = tqIds.map(id => `ch_templatequestionid eq ${id}`).join(' or ');
+      const tqData = await apiGet('ch_templatequestions', {
+        '$select': 'ch_templatequestionid,ch_category,ch_deficientnarrative,ch_helptext,ch_vulnerabilityranking',
+        '$filter': tqFilter,
+      });
+      for (const tq of (tqData.value || [])) {
+        tqMap[tq.ch_templatequestionid] = tq;
+      }
+    }
+    for (const r of rawResponses) {
+      r.ch_templatequestion = tqMap[r['_ch_templatequestion_value']] || {};
+    }
+    state.responses = rawResponses;
     state.photoCounts = {};
     for (const p of (photoData.value || [])) {
       const rid = p['_ch_assessmentquestionresponse_value'];
