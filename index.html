@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Assessment Review Tool</title>
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3/dist/index.umd.min.js"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; color: #1a1a1a; background: #f5f5f3; }
+
+/* Login */
+#login-view { display: flex; align-items: center; justify-content: center; min-height: 100vh; }
+.login-card { background: #fff; border: 0.5px solid #ddd; border-radius: 12px; padding: 48px 40px; width: 380px; text-align: center; }
+.login-brand { font-size: 13px; font-weight: 600; color: #185FA5; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 20px; }
+.login-card h1 { font-size: 20px; font-weight: 500; margin-bottom: 8px; }
+.login-card p { font-size: 13px; color: #666; margin-bottom: 28px; }
+.error-text { color: #A32D2D; font-size: 12px; margin-top: 12px; min-height: 18px; }
+
+/* Header */
+.app-header { height: 48px; background: #fff; border-bottom: 0.5px solid #e0e0e0; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; position: sticky; top: 0; z-index: 100; }
+.header-brand { font-size: 14px; font-weight: 600; color: #185FA5; letter-spacing: .03em; }
+.header-right { display: flex; align-items: center; gap: 14px; }
+.header-user { font-size: 13px; color: #666; }
+
+/* Buttons */
+button { cursor: pointer; border: none; background: none; font-family: inherit; font-size: 13px; }
+.btn-ghost { color: #666; padding: 4px 8px; border-radius: 6px; }
+.btn-ghost:hover { background: #f0f0f0; color: #333; }
+.btn-outline { width: 100%; padding: 9px; border: 0.5px solid #ccc; border-radius: 8px; background: #fff; color: #333; font-size: 13px; font-weight: 500; }
+.btn-outline:hover { background: #f5f5f5; }
+.btn-primary-full { width: 100%; padding: 9px; background: #185FA5; color: #fff; border-radius: 8px; font-size: 13px; font-weight: 500; }
+.btn-primary-full:hover { background: #0C447C; }
+#login-btn { width: 100%; padding: 11px; background: #185FA5; color: #fff; border-radius: 8px; font-size: 14px; font-weight: 500; }
+#login-btn:hover { background: #0C447C; }
+.back-btn { font-size: 12px; color: #185FA5; padding: 0; cursor: pointer; }
+.back-btn:hover { text-decoration: underline; }
+
+/* Assessment list */
+#list-view { padding: 32px; max-width: 1280px; margin: 0 auto; }
+.list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.list-header h2 { font-size: 20px; font-weight: 500; }
+.list-filters select { padding: 7px 10px; border: 0.5px solid #ccc; border-radius: 8px; font-size: 13px; background: #fff; }
+.assessment-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.assessment-card { background: #fff; border: 0.5px solid #e0e0e0; border-radius: 12px; padding: 18px; cursor: pointer; transition: border-color .15s; }
+.assessment-card:hover { border-color: #185FA5; }
+.ac-client { font-size: 15px; font-weight: 500; margin-bottom: 3px; }
+.ac-facility { font-size: 13px; color: #555; margin-bottom: 2px; }
+.ac-date { font-size: 12px; color: #888; margin-bottom: 14px; }
+.ac-footer { display: flex; align-items: center; justify-content: space-between; }
+.ac-name { font-size: 12px; color: #888; }
+.status-badge { font-size: 11px; font-weight: 500; padding: 3px 9px; border-radius: 10px; }
+.status-pending { background: #FAEEDA; color: #633806; }
+.status-completed { background: #EAF3DE; color: #27500A; }
+.status-inprogress { background: #E6F1FB; color: #0C447C; }
+.status-other { background: #f0f0f0; color: #666; }
+.loading-msg { color: #999; font-size: 13px; padding: 48px 0; text-align: center; grid-column: 1/-1; }
+
+/* Review layout */
+.review-layout { display: flex; height: calc(100vh - 48px); overflow: hidden; }
+
+/* Sidebar */
+.sidebar { width: 258px; min-width: 258px; background: #fff; border-right: 0.5px solid #e0e0e0; display: flex; flex-direction: column; overflow: hidden; }
+.sidebar-top { padding: 14px 16px; border-bottom: 0.5px solid #e0e0e0; }
+.sb-client { font-size: 14px; font-weight: 500; line-height: 1.4; }
+.sb-facility { font-size: 13px; color: #555; margin-top: 2px; }
+.sb-date { font-size: 12px; color: #888; margin-top: 2px; }
+.sb-back { margin-bottom: 10px; }
+.status-pill { display: inline-flex; align-items: center; gap: 5px; margin-top: 8px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+.sp-pending { background: #FAEEDA; color: #633806; border: 0.5px solid #EF9F27; }
+.sp-completed { background: #EAF3DE; color: #27500A; border: 0.5px solid #639922; }
+.progress-wrap { height: 3px; background: #f0f0f0; flex-shrink: 0; }
+.progress-bar { height: 100%; background: #185FA5; transition: width .3s; }
+.section-nav { flex: 1; overflow-y: auto; padding: 8px; }
+.nav-group-label { font-size: 10px; font-weight: 600; color: #bbb; letter-spacing: .09em; text-transform: uppercase; padding: 10px 10px 5px; }
+.nav-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 8px; cursor: pointer; margin-bottom: 2px; }
+.nav-item:hover { background: #f5f5f5; }
+.nav-item.active { background: #E6F1FB; }
+.nav-item-text { font-size: 13px; color: #333; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; margin-right: 8px; }
+.nav-item.active .nav-item-text { color: #0C447C; font-weight: 500; }
+.nav-badge { font-size: 11px; padding: 2px 7px; border-radius: 10px; background: #f0f0f0; color: #666; flex-shrink: 0; }
+.nav-item.active .nav-badge { background: #B5D4F4; color: #0C447C; }
+.nav-badge.nb-high { background: #FCEBEB; color: #791F1F; }
+.sidebar-footer { padding: 12px 16px; border-top: 0.5px solid #e0e0e0; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
+
+/* Main */
+.review-main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.main-topbar { padding: 14px 24px; background: #fff; border-bottom: 0.5px solid #e0e0e0; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.main-topbar-left h2 { font-size: 18px; font-weight: 500; }
+.section-meta { font-size: 12px; color: #999; margin-top: 3px; }
+.main-topbar-right { display: flex; align-items: center; gap: 10px; }
+.risk-label { font-size: 13px; color: #666; }
+.risk-select { font-size: 13px; padding: 6px 10px; border: 0.5px solid #ccc; border-radius: 8px; background: #fff; }
+.findings-body { flex: 1; overflow-y: auto; padding: 24px; }
+.section-prompt { text-align: center; color: #bbb; font-size: 14px; padding: 80px 0; }
+
+/* Finding cards */
+.finding-card { background: #fff; border: 0.5px solid #e0e0e0; border-radius: 12px; margin-bottom: 14px; overflow: hidden; transition: opacity .2s; }
+.finding-card.excluded { opacity: .55; }
+.fc-header { padding: 14px 16px; border-bottom: 0.5px solid #f0f0f0; display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.fc-header-left { flex: 1; min-width: 0; }
+.fc-category { font-size: 14px; font-weight: 500; margin-bottom: 3px; }
+.fc-question { font-size: 12px; color: #666; line-height: 1.55; }
+.fc-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+.badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+.badge-high { background: #FCEBEB; color: #791F1F; }
+.badge-moderate { background: #FAEEDA; color: #633806; }
+.badge-low { background: #EAF3DE; color: #27500A; }
+.badge-negligible { background: #f0f0f0; color: #666; }
+.badge-answer { background: #f0f0f0; color: #555; }
+.toggle-group { display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding-top: 1px; }
+.toggle-text { font-size: 12px; color: #888; }
+.toggle-btn { width: 36px; height: 20px; border-radius: 10px; position: relative; cursor: pointer; flex-shrink: 0; padding: 0; transition: background .2s; }
+.toggle-btn.on { background: #185FA5; }
+.toggle-btn.off { background: #ccc; }
+.toggle-thumb { width: 14px; height: 14px; background: #fff; border-radius: 50%; position: absolute; top: 3px; transition: left .2s; pointer-events: none; }
+.toggle-btn.on .toggle-thumb { left: 19px; }
+.toggle-btn.off .toggle-thumb { left: 3px; }
+
+.fc-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.field-block { display: flex; flex-direction: column; gap: 5px; }
+.field-lbl { font-size: 10px; font-weight: 600; color: #bbb; letter-spacing: .08em; text-transform: uppercase; }
+.narrative-text { background: #f8f8f6; padding: 12px; font-size: 13px; color: #555; line-height: 1.65; border-left: 2px solid #ddd; }
+.field-comment-box { background: #f8f8f6; padding: 10px 12px; font-size: 13px; color: #666; line-height: 1.6; border-left: 2px solid #EF9F27; display: flex; gap: 10px; align-items: flex-start; }
+.field-comment-empty { font-size: 13px; color: #ccc; font-style: italic; }
+textarea.fc-textarea { width: 100%; min-height: 80px; border: 0.5px solid #ddd; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #1a1a1a; background: #fff; resize: vertical; line-height: 1.6; font-family: inherit; }
+textarea.fc-textarea:focus { outline: none; border-color: #185FA5; }
+.exclusion-block { background: #FAEEDA; border-radius: 8px; padding: 12px; border: 0.5px solid #EF9F27; display: flex; flex-direction: column; gap: 6px; }
+.exclusion-lbl { font-size: 10px; font-weight: 600; color: #854F0B; letter-spacing: .08em; text-transform: uppercase; }
+textarea.exclusion-textarea { width: 100%; min-height: 60px; border: 0.5px solid #EF9F27; border-radius: 8px; padding: 9px 11px; font-size: 13px; color: #412402; background: #fff; resize: vertical; line-height: 1.55; font-family: inherit; }
+textarea.exclusion-textarea:focus { outline: none; border-color: #BA7517; }
+.photo-info { font-size: 12px; color: #999; }
+
+/* Toast */
+.toast { position: fixed; bottom: 24px; right: 24px; background: #1a1a1a; color: #fff; padding: 10px 16px; border-radius: 8px; font-size: 13px; z-index: 9999; opacity: 0; transition: opacity .25s; pointer-events: none; }
+.toast.show { opacity: 1; }
+.toast.err { background: #A32D2D; }
+
+/* Dark mode */
+@media (prefers-color-scheme: dark) {
+  html, body { color: #e0e0e0; background: #1a1a1a; }
+  .app-header, .sidebar, .sidebar-top, .finding-card, .login-card, .assessment-card, .review-main .main-topbar { background: #252525; border-color: #333; }
+  .fc-category, .ac-client, .sb-client, .list-header h2, .main-topbar-left h2 { color: #e0e0e0; }
+  .fc-question, .ac-facility, .section-meta { color: #aaa; }
+  .narrative-text { background: #2c2c2c; color: #ccc; border-left-color: #444; }
+  .field-comment-box { background: #2c2c2c; }
+  textarea.fc-textarea { background: #2c2c2c; border-color: #444; color: #e0e0e0; }
+  textarea.exclusion-textarea { background: #2c2c2c; }
+  .nav-item:hover { background: #2c2c2c; }
+  .nav-item.active { background: #0c2540; }
+  .assessment-card:hover { border-color: #378ADD; }
+  .btn-outline { background: #252525; border-color: #444; color: #e0e0e0; }
+  .risk-select, .list-filters select { background: #252525; border-color: #444; color: #e0e0e0; }
+  .findings-body, #list-view { background: #1a1a1a; }
+}
+</style>
+</head>
+<body>
+
+<div id="login-view">
+  <div class="login-card">
+    <div class="login-brand">TNG Defense</div>
+    <h1>Assessment Review Tool</h1>
+    <p>Sign in with your Microsoft 365 work account to access pending assessments.</p>
+    <button id="login-btn" onclick="login()">Sign in with Microsoft</button>
+    <p id="login-error" class="error-text"></p>
+  </div>
+</div>
+
+<div id="app-view" style="display:none">
+  <header class="app-header">
+    <span class="header-brand">TNG · Assessment Review</span>
+    <div class="header-right">
+      <span id="header-username" class="header-user"></span>
+      <button class="btn-ghost" onclick="logout()">Sign out</button>
+    </div>
+  </header>
+
+  <div id="list-view">
+    <div class="list-header">
+      <h2 id="list-title">Assessments pending review</h2>
+      <select id="status-filter" onchange="loadAssessmentList()">
+        <option value="pending">Pending review</option>
+        <option value="all">All assessments</option>
+      </select>
+    </div>
+    <div id="assessment-grid" class="assessment-grid">
+      <div class="loading-msg">Loading assessments...</div>
+    </div>
+  </div>
+
+  <div id="review-view" style="display:none">
+    <div class="review-layout">
+      <aside class="sidebar">
+        <div class="sidebar-top">
+          <div class="sb-back"><button class="back-btn" onclick="showListView()">← All assessments</button></div>
+          <div id="sb-client" class="sb-client"></div>
+          <div id="sb-facility" class="sb-facility"></div>
+          <div id="sb-date" class="sb-date"></div>
+          <div id="sb-status" class="status-pill sp-pending"></div>
+        </div>
+        <div class="progress-wrap"><div id="progress-bar" class="progress-bar" style="width:0%"></div></div>
+        <nav id="section-nav" class="section-nav">
+          <div class="nav-group-label">Sections</div>
+        </nav>
+        <div class="sidebar-footer">
+          <button class="btn-outline" onclick="saveDraft()">Save draft</button>
+          <button class="btn-primary-full" onclick="approveForReport()">Approve for report</button>
+        </div>
+      </aside>
+
+      <main class="review-main">
+        <div class="main-topbar">
+          <div class="main-topbar-left">
+            <h2 id="section-title">Select a section</h2>
+            <p id="section-meta" class="section-meta"></p>
+          </div>
+          <div class="main-topbar-right">
+            <label class="risk-label" for="risk-select">Initial risk rating</label>
+            <select id="risk-select" class="risk-select" onchange="saveRiskRating(this.value)">
+              <option value="">— select —</option>
+              <option value="3">High</option>
+              <option value="2">Moderate</option>
+              <option value="1">Low</option>
+              <option value="0">Negligible</option>
+            </select>
+          </div>
+        </div>
+        <div id="findings-body" class="findings-body">
+          <div class="section-prompt">Select a section from the left panel to begin review.</div>
+        </div>
+      </main>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+//  CONFIG — update CLIENT_ID and status values before use
+// ============================================================
+const CONFIG = {
+  CLIENT_ID: '532eb90a-f323-42f8-b919-5c9403253b06',       // Replace after creating Azure app registration
+  TENANT_ID: 'd07114e5-8c65-48ee-9b85-1effb613d7c0',
+  DATAVERSE_URL: 'https://orgcb366cbd.crm.dynamics.com',
+  get REDIRECT_URI() { return window.location.origin + window.location.pathname; },
+
+  // Find these values in Dataverse: Tables → Assessment → Columns → Assessment Status → Edit
+  STATUS_PENDING_REVIEW: 2,   // Integer value for "Pending Review"
+  STATUS_COMPLETED: 3,        // Integer value for "Completed"
+};
+
+// ============================================================
+//  MSAL
+// ============================================================
+const msalConfig = {
+  auth: {
+    clientId: CONFIG.CLIENT_ID,
+    authority: `https://login.microsoftonline.com/${CONFIG.TENANT_ID}`,
+    redirectUri: CONFIG.REDIRECT_URI,
+  },
+  cache: { cacheLocation: 'sessionStorage' },
+};
+const loginRequest = { scopes: [`${CONFIG.DATAVERSE_URL}/.default`] };
+let msalInstance;
+
+// ============================================================
+//  STATE
+// ============================================================
+const state = {
+  account: null,
+  token: null,
+  assessments: [],
+  selectedAssessment: null,
+  sections: [],
+  responses: [],
+  photoCounts: {},
+  currentSectionId: null,
+};
+
+// ============================================================
+//  AUTH
+// ============================================================
+async function initMsal() {
+  msalInstance = new msal.PublicClientApplication(msalConfig);
+  await msalInstance.initialize();
+  await msalInstance.handleRedirectPromise();
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    state.account = accounts[0];
+    await refreshToken();
+    showAppView();
+    await loadAssessmentList();
+  } else {
+    showLoginView();
+  }
+}
+
+async function login() {
+  document.getElementById('login-error').textContent = '';
+  try {
+    const result = await msalInstance.loginPopup(loginRequest);
+    state.account = result.account;
+    state.token = result.accessToken;
+    showAppView();
+    await loadAssessmentList();
+  } catch (e) {
+    document.getElementById('login-error').textContent = 'Sign in failed. Please try again.';
+  }
+}
+
+function logout() {
+  msalInstance.logoutPopup({ account: state.account });
+  showLoginView();
+}
+
+async function refreshToken() {
+  try {
+    const result = await msalInstance.acquireTokenSilent({ ...loginRequest, account: state.account });
+    state.token = result.accessToken;
+  } catch {
+    const result = await msalInstance.acquireTokenPopup(loginRequest);
+    state.token = result.accessToken;
+  }
+}
+
+// ============================================================
+//  API HELPERS
+// ============================================================
+async function apiGet(endpoint, params) {
+  await refreshToken();
+  const url = new URL(`${CONFIG.DATAVERSE_URL}/api/data/v9.2/${endpoint}`);
+  if (params) Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString(), {
+    headers: {
+      'Authorization': `Bearer ${state.token}`,
+      'Accept': 'application/json',
+      'OData-MaxVersion': '4.0',
+      'OData-Version': '4.0',
+      'Prefer': 'odata.include-annotations="OData.Community.Display.V1.FormattedValue"',
+    },
+  });
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+  return res.json();
+}
+
+async function apiPatch(entity, id, data) {
+  await refreshToken();
+  const res = await fetch(`${CONFIG.DATAVERSE_URL}/api/data/v9.2/${entity}(${id})`, {
+    method: 'PATCH',
+    headers: {
+      'Authorization': `Bearer ${state.token}`,
+      'Content-Type': 'application/json',
+      'OData-MaxVersion': '4.0',
+      'OData-Version': '4.0',
+    },
+    body: JSON.stringify(data),
+  });
+  if (!res.ok && res.status !== 204) throw new Error(`${res.status} ${await res.text()}`);
+}
+
+// ============================================================
+//  VIEW MANAGEMENT
+// ============================================================
+function showLoginView() {
+  document.getElementById('login-view').style.display = 'flex';
+  document.getElementById('app-view').style.display = 'none';
+}
+function showAppView() {
+  document.getElementById('login-view').style.display = 'none';
+  document.getElementById('app-view').style.display = 'block';
+  document.getElementById('header-username').textContent = state.account?.name || state.account?.username || '';
+}
+function showListView() {
+  document.getElementById('list-view').style.display = 'block';
+  document.getElementById('review-view').style.display = 'none';
+  state.selectedAssessment = null;
+  state.sections = [];
+  state.responses = [];
+}
+function showReviewView() {
+  document.getElementById('list-view').style.display = 'none';
+  document.getElementById('review-view').style.display = 'block';
+}
+
+// ============================================================
+//  ASSESSMENT LIST
+// ============================================================
+async function loadAssessmentList() {
+  const grid = document.getElementById('assessment-grid');
+  const filterVal = document.getElementById('status-filter')?.value || 'pending';
+  const title = document.getElementById('list-title');
+  grid.innerHTML = '<div class="loading-msg">Loading assessments...</div>';
+
+  try {
+    const params = {
+      '$select': 'ch_assessment1id,ch_assessmentname,ch_assessmentdate,ch_assessmentstatus,ch_clientname,ch_facilityname',
+      '$orderby': 'ch_assessmentdate desc',
+    };
+    if (filterVal === 'pending' && CONFIG.STATUS_PENDING_REVIEW !== null) {
+      params['$filter'] = `ch_assessmentstatus eq ${CONFIG.STATUS_PENDING_REVIEW}`;
+      title.textContent = 'Assessments pending review';
+    } else {
+      title.textContent = 'All assessments';
+    }
+    const data = await apiGet('ch_assessment1s', params);
+    state.assessments = data.value || [];
+    renderAssessmentGrid();
+  } catch (e) {
+    grid.innerHTML = `<div class="loading-msg" style="color:#A32D2D">Error loading assessments: ${e.message}</div>`;
+  }
+}
+
+function renderAssessmentGrid() {
+  const grid = document.getElementById('assessment-grid');
+  if (!state.assessments.length) {
+    grid.innerHTML = '<div class="loading-msg">No assessments found.</div>';
+    return;
+  }
+  grid.innerHTML = state.assessments.map(a => {
+    const statusLabel = a['ch_assessmentstatus@OData.Community.Display.V1.FormattedValue'] || 'Unknown';
+    const sc = statusLabel.toLowerCase().includes('pending') ? 'status-pending'
+             : statusLabel.toLowerCase().includes('completed') ? 'status-completed'
+             : statusLabel.toLowerCase().includes('progress') ? 'status-inprogress' : 'status-other';
+    const date = a.ch_assessmentdate
+      ? new Date(a.ch_assessmentdate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+      : 'No date';
+    return `<div class="assessment-card" onclick="openAssessment('${a.ch_assessment1id}')">
+      <div class="ac-client">${esc(a.ch_clientname || 'Unknown client')}</div>
+      <div class="ac-facility">${esc(a.ch_facilityname || 'Unknown facility')}</div>
+      <div class="ac-date">${date}</div>
+      <div class="ac-footer">
+        <span class="ac-name">${esc(a.ch_assessmentname || '')}</span>
+        <span class="status-badge ${sc}">${esc(statusLabel)}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ============================================================
+//  OPEN ASSESSMENT
+// ============================================================
+async function openAssessment(assessmentId) {
+  showReviewView();
+  document.getElementById('findings-body').innerHTML = '<div class="section-prompt">Loading assessment data...</div>';
+  document.getElementById('section-nav').innerHTML = '<div class="nav-group-label">Sections</div><div class="loading-msg" style="padding:16px 0">Loading...</div>';
+
+  try {
+    const assessment = state.assessments.find(a => a.ch_assessment1id === assessmentId);
+    state.selectedAssessment = assessment;
+    renderSidebarHeader();
+
+    const [secData, resData, photoData] = await Promise.all([
+      apiGet('ch_assessmentsections', {
+        '$select': 'ch_assessmentsectionid,ch_assessmentsectionname,ch_sectionnamesnapshot,ch_sectionordersnapshot,ch_initialriskrating',
+        '$filter': `_ch_assessment_value eq ${assessmentId}`,
+        '$orderby': 'ch_sectionordersnapshot asc',
+      }),
+      apiGet('ch_assessmentquestionresponses', {
+        '$select': 'ch_assessmentquestionresponseid,ch_questiontextsnapshot,ch_sectionnamesnapshot,ch_sectionordersnapshot,ch_questionordersnapshot,ch_responsevalue,ch_questioncomment,ch_assessornarrative,ch_includedinreport,ch_exclusionreason,_ch_assessmentsection_value',
+        '$filter': `_ch_assessment_value eq ${assessmentId} and ch_isdeficient eq true`,
+        '$expand': 'ch_templatequestion($select=ch_category,ch_deficientnarrative,ch_helptext,ch_vulnerabilityranking)',
+        '$orderby': 'ch_sectionordersnapshot asc,ch_questionordersnapshot asc',
+      }),
+      apiGet('ch_assessmentphotos', {
+        '$select': 'ch_assessmentphotoid,_ch_assessmentquestionresponse_value',
+        '$filter': `_ch_assessment_value eq ${assessmentId}`,
+      }),
+    ]);
+
+    state.sections = secData.value || [];
+    state.responses = resData.value || [];
+    state.photoCounts = {};
+    for (const p of (photoData.value || [])) {
+      const rid = p['_ch_assessmentquestionresponse_value'];
+      if (rid) state.photoCounts[rid] = (state.photoCounts[rid] || 0) + 1;
+    }
+
+    renderSectionNav();
+    updateProgress();
+    if (state.sections.length) selectSection(state.sections[0].ch_assessmentsectionid);
+    else document.getElementById('findings-body').innerHTML = '<div class="section-prompt">No sections found for this assessment.</div>';
+
+  } catch (e) {
+    document.getElementById('findings-body').innerHTML = `<div class="section-prompt" style="color:#A32D2D">Error: ${e.message}</div>`;
+  }
+}
+
+function renderSidebarHeader() {
+  const a = state.selectedAssessment;
+  if (!a) return;
+  document.getElementById('sb-client').textContent = a.ch_clientname || 'Unknown client';
+  document.getElementById('sb-facility').textContent = a.ch_facilityname || 'Unknown facility';
+  const date = a.ch_assessmentdate
+    ? new Date(a.ch_assessmentdate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
+  document.getElementById('sb-date').textContent = date;
+  const statusLabel = a['ch_assessmentstatus@OData.Community.Display.V1.FormattedValue'] || '';
+  const pill = document.getElementById('sb-status');
+  pill.textContent = statusLabel;
+  pill.className = 'status-pill ' + (statusLabel.toLowerCase().includes('pending') ? 'sp-pending' : 'sp-completed');
+}
+
+function renderSectionNav() {
+  const bySection = groupBy(state.responses, r => r['_ch_assessmentsection_value']);
+  const nav = document.getElementById('section-nav');
+  nav.innerHTML = '<div class="nav-group-label">Sections</div>';
+  state.sections.forEach(s => {
+    const rr = bySection[s.ch_assessmentsectionid] || [];
+    const hasHigh = rr.some(r => r.ch_templatequestion?.ch_vulnerabilityranking === 3);
+    const item = document.createElement('div');
+    item.className = 'nav-item';
+    item.dataset.sectionId = s.ch_assessmentsectionid;
+    item.onclick = () => selectSection(s.ch_assessmentsectionid);
+    item.innerHTML = `<span class="nav-item-text">${esc(s.ch_sectionnamesnapshot || s.ch_assessmentsectionname || 'Section')}</span>
+      <span class="nav-badge ${hasHigh ? 'nb-high' : ''}">${rr.length}</span>`;
+    nav.appendChild(item);
+  });
+}
+
+// ============================================================
+//  SECTION SELECTION
+// ============================================================
+function selectSection(sectionId) {
+  state.currentSectionId = sectionId;
+  document.querySelectorAll('.nav-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.sectionId === sectionId));
+
+  const section = state.sections.find(s => s.ch_assessmentsectionid === sectionId);
+  if (!section) return;
+
+  const sectionName = section.ch_sectionnamesnapshot || section.ch_assessmentsectionname || 'Section';
+  document.getElementById('section-title').textContent = sectionName;
+
+  const bySection = groupBy(state.responses, r => r['_ch_assessmentsection_value']);
+  const rr = bySection[sectionId] || [];
+  updateSectionMeta(rr);
+
+  const riskSel = document.getElementById('risk-select');
+  riskSel.value = section.ch_initialriskrating != null ? String(section.ch_initialriskrating) : '';
+  riskSel.dataset.sectionId = sectionId;
+
+  renderFindings(rr);
+}
+
+function updateSectionMeta(responses) {
+  const excluded = responses.filter(r => r.ch_includedinreport === false).length;
+  const photos = responses.reduce((s, r) => s + (state.photoCounts[r.ch_assessmentquestionresponseid] || 0), 0);
+  document.getElementById('section-meta').textContent =
+    `${responses.length} deficient findings · ${excluded} excluded · ${photos} photo${photos !== 1 ? 's' : ''}`;
+}
+
+// ============================================================
+//  FINDINGS RENDERING
+// ============================================================
+function renderFindings(responses) {
+  const body = document.getElementById('findings-body');
+  if (!responses.length) {
+    body.innerHTML = '<div class="section-prompt">No deficient findings in this section.</div>';
+    return;
+  }
+  body.innerHTML = responses.map(buildFindingCard).join('');
+}
+
+function buildFindingCard(r) {
+  const id = r.ch_assessmentquestionresponseid;
+  const tq = r.ch_templatequestion || {};
+  const included = r.ch_includedinreport !== false;
+  const category = tq.ch_category || r.ch_sectionnamesnapshot || 'Finding';
+  const question = r.ch_questiontextsnapshot || '';
+  const answer = r['ch_responsevalue@OData.Community.Display.V1.FormattedValue'] || '';
+  const rank = tq.ch_vulnerabilityranking;
+  const rankLabel = rank === 3 ? 'High' : rank === 2 ? 'Moderate' : rank === 1 ? 'Low' : rank === 0 ? 'Negligible' : '';
+  const rankClass = rank === 3 ? 'badge-high' : rank === 2 ? 'badge-moderate' : rank === 1 ? 'badge-low' : 'badge-negligible';
+  const photoCount = state.photoCounts[id] || 0;
+
+  const cardBody = included ? `
+    <div class="fc-body">
+      ${tq.ch_deficientnarrative ? `
+      <div class="field-block">
+        <div class="field-lbl">Standard deficient narrative</div>
+        <div class="narrative-text">${esc(tq.ch_deficientnarrative)}</div>
+      </div>` : ''}
+      <div class="field-block">
+        <div class="field-lbl">Field comment</div>
+        ${r.ch_questioncomment
+          ? `<div class="field-comment-box"><svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="flex-shrink:0;margin-top:1px;color:#aaa"><path d="M2 2h10v8H8l-3 2V10H2V2z" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/></svg><span>${esc(r.ch_questioncomment)}</span></div>`
+          : `<div class="field-comment-box"><span class="field-comment-empty">No field comment recorded during walkthrough.</span></div>`}
+      </div>
+      <div class="field-block">
+        <div class="field-lbl">Assessor observations</div>
+        <textarea class="fc-textarea" data-id="${id}" data-field="ch_assessornarrative"
+          placeholder="Add property-specific observations for this finding..."
+          onblur="saveField(this)">${esc(r.ch_assessornarrative || '')}</textarea>
+      </div>
+      ${tq.ch_helptext ? `
+      <div class="field-block">
+        <div class="field-lbl">Considerations</div>
+        <div class="narrative-text">${esc(tq.ch_helptext)}</div>
+      </div>` : ''}
+      <div class="field-block">
+        <div class="field-lbl">Photos</div>
+        <div class="photo-info">${photoCount > 0 ? `${photoCount} photo${photoCount !== 1 ? 's' : ''} captured during walkthrough` : 'No photos captured'}</div>
+      </div>
+    </div>` : `
+    <div class="fc-body">
+      <div class="exclusion-block">
+        <div class="exclusion-lbl">Reason for exclusion</div>
+        <textarea class="exclusion-textarea" data-id="${id}" data-field="ch_exclusionreason"
+          placeholder="Why is this finding excluded from the report?"
+          onblur="saveField(this)">${esc(r.ch_exclusionreason || '')}</textarea>
+      </div>
+    </div>`;
+
+  return `<div class="finding-card ${included ? '' : 'excluded'}" id="card-${id}">
+    <div class="fc-header">
+      <div class="fc-header-left">
+        <div class="fc-category">${esc(category)}</div>
+        <div class="fc-question">${esc(question)}</div>
+        <div class="fc-badges">
+          ${rankLabel ? `<span class="badge ${rankClass}">${rankLabel}</span>` : ''}
+          ${answer ? `<span class="badge badge-answer">Answer: ${esc(answer)}</span>` : ''}
+        </div>
+      </div>
+      <div class="toggle-group">
+        <span class="toggle-text">${included ? 'Include' : 'Excluded'}</span>
+        <button class="toggle-btn ${included ? 'on' : 'off'}" onclick="toggleFinding('${id}', this)">
+          <div class="toggle-thumb"></div>
+        </button>
+      </div>
+    </div>
+    ${cardBody}
+  </div>`;
+}
+
+// ============================================================
+//  ACTIONS
+// ============================================================
+async function toggleFinding(responseId, btn) {
+  const r = state.responses.find(x => x.ch_assessmentquestionresponseid === responseId);
+  if (!r) return;
+  const nowIncluded = r.ch_includedinreport === false;
+  try {
+    await apiPatch('ch_assessmentquestionresponses', responseId, { ch_includedinreport: nowIncluded });
+    r.ch_includedinreport = nowIncluded;
+    const bySection = groupBy(state.responses, x => x['_ch_assessmentsection_value']);
+    const rr = bySection[state.currentSectionId] || [];
+    renderFindings(rr);
+    updateSectionMeta(rr);
+    updateProgress();
+    showToast(nowIncluded ? 'Finding included in report' : 'Finding excluded from report');
+  } catch (e) {
+    showToast('Error: ' + e.message, true);
+  }
+}
+
+async function saveField(textarea) {
+  const id = textarea.dataset.id;
+  const field = textarea.dataset.field;
+  const value = textarea.value;
+  const r = state.responses.find(x => x.ch_assessmentquestionresponseid === id);
+  if (r) r[field] = value;
+  try {
+    await apiPatch('ch_assessmentquestionresponses', id, { [field]: value });
+    showToast('Saved');
+  } catch (e) {
+    showToast('Save failed: ' + e.message, true);
+  }
+}
+
+async function saveRiskRating(value) {
+  const sel = document.getElementById('risk-select');
+  const sectionId = sel.dataset.sectionId;
+  if (!sectionId) return;
+  const section = state.sections.find(s => s.ch_assessmentsectionid === sectionId);
+  if (!section) return;
+  const intVal = value === '' ? null : parseInt(value);
+  section.ch_initialriskrating = intVal;
+  try {
+    await apiPatch('ch_assessmentsections', sectionId, { ch_initialriskrating: intVal });
+    updateProgress();
+    showToast('Risk rating saved');
+  } catch (e) {
+    showToast('Error saving risk rating: ' + e.message, true);
+  }
+}
+
+async function saveDraft() {
+  showToast('All changes are saved automatically as you work');
+}
+
+async function approveForReport() {
+  if (!state.selectedAssessment) return;
+  if (CONFIG.STATUS_COMPLETED === null) {
+    showToast('Set STATUS_COMPLETED in CONFIG before approving', true);
+    return;
+  }
+  const unrated = state.sections.filter(s => s.ch_initialriskrating == null);
+  if (unrated.length) {
+    const names = unrated.map(s => s.ch_sectionnamesnapshot || s.ch_assessmentsectionname).join(', ');
+    if (!confirm(`${unrated.length} section(s) have no risk rating: ${names}.\n\nApprove anyway?`)) return;
+  }
+  try {
+    await apiPatch('ch_assessment1s', state.selectedAssessment.ch_assessment1id, {
+      ch_assessmentstatus: CONFIG.STATUS_COMPLETED,
+    });
+    showToast('Approved — report generation triggered');
+    setTimeout(showListView, 2200);
+  } catch (e) {
+    showToast('Error approving: ' + e.message, true);
+  }
+}
+
+function updateProgress() {
+  const total = state.sections.length;
+  const rated = state.sections.filter(s => s.ch_initialriskrating != null).length;
+  document.getElementById('progress-bar').style.width = total ? `${Math.round((rated / total) * 100)}%` : '0%';
+}
+
+// ============================================================
+//  UTILITIES
+// ============================================================
+function groupBy(arr, fn) {
+  return arr.reduce((acc, item) => {
+    const k = fn(item);
+    if (!acc[k]) acc[k] = [];
+    acc[k].push(item);
+    return acc;
+  }, {});
+}
+
+function esc(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+let toastTimer;
+function showToast(msg, isErr = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr ? ' err' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ============================================================
+//  INIT
+// ============================================================
+initMsal().catch(e => {
+  document.getElementById('login-error').textContent = 'Initialization error: ' + e.message;
+  document.getElementById('login-view').style.display = 'flex';
+});
+</script>
+</body>
+</html>
