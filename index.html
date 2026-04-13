@@ -394,7 +394,8 @@ async function loadAssessmentList() {
 
   try {
     const params = {
-      '$select': 'ch_assessment1id,ch_assessmentname,ch_assessmentdate,ch_assessmentstatus,ch_clientname,ch_facilityname',
+      '$select': 'ch_assessment1id,ch_assessmentname,ch_assessmentdate,ch_assessmentstatus',
+      '$expand': 'ch_client($select=ch_clientname),ch_facility($select=ch_facilityname)',
       '$orderby': 'ch_assessmentdate desc',
     };
     if (filterVal === 'pending' && CONFIG.STATUS_PENDING_REVIEW !== null) {
@@ -426,8 +427,8 @@ function renderAssessmentGrid() {
       ? new Date(a.ch_assessmentdate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
       : 'No date';
     return `<div class="assessment-card" onclick="openAssessment('${a.ch_assessment1id}')">
-      <div class="ac-client">${esc(a.ch_clientname || 'Unknown client')}</div>
-      <div class="ac-facility">${esc(a.ch_facilityname || 'Unknown facility')}</div>
+      <div class="ac-client">${esc(a.ch_client?.ch_clientname || a.ch_assessmentname || 'Unknown client')}</div>
+      <div class="ac-facility">${esc(a.ch_facility?.ch_facilityname || 'Unknown facility')}</div>
       <div class="ac-date">${date}</div>
       <div class="ac-footer">
         <span class="ac-name">${esc(a.ch_assessmentname || '')}</span>
@@ -489,8 +490,8 @@ async function openAssessment(assessmentId) {
 function renderSidebarHeader() {
   const a = state.selectedAssessment;
   if (!a) return;
-  document.getElementById('sb-client').textContent = a.ch_clientname || 'Unknown client';
-  document.getElementById('sb-facility').textContent = a.ch_facilityname || 'Unknown facility';
+  document.getElementById('sb-client').textContent = a.ch_client?.ch_clientname || a.ch_assessmentname || 'Unknown client';
+  document.getElementById('sb-facility').textContent = a.ch_facility?.ch_facilityname || 'Unknown facility';
   const date = a.ch_assessmentdate
     ? new Date(a.ch_assessmentdate).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' }) : '';
   document.getElementById('sb-date').textContent = date;
